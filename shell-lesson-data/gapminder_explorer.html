@@ -237,6 +237,8 @@ footer{color:var(--muted2);font-size:11px;text-align:center;}
     document.getElementById('srcInfo').textContent='Loaded '+records.length+' rows ('+countries.length+' countries, '+continents.length+' continents, years '+years[0]+'&ndash;'+years[years.length-1]+') from '+srcLabel+'.';
     document.getElementById('rangeLabel').textContent=years[0]+'&ndash;'+years[years.length-1];
     year=Math.min(year,years[years.length-1]);
+    computeScales();
+    drawAxes();
     buildControls();
     refresh();
   }
@@ -367,6 +369,7 @@ footer{color:var(--muted2);font-size:11px;text-align:center;}
     document.getElementById('yearSlider').value=year;
     document.querySelectorAll('#yearChips .chip').forEach(function(b){b.classList.toggle('active',+b.textContent===year);});
     positionBubbles();
+    updateTargets();
     updateStats();updateTable();
   }
 
