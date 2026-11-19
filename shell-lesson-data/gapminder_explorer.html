@@ -262,8 +262,7 @@ footer{color:var(--muted2);font-size:11px;text-align:center;}
   // ---------- visibility ----------
   function visible(r){
     if(selectedCont!=='all'&&r.continent!==selectedCont)return false;
-    if(activeCont.size===0)return false;
-    if(activeCont.size<continents.length&&!activeCont.has(r.continent))return false;
+    if(activeCont.size>0&&activeCont.size<continents.length&&!activeCont.has(r.continent))return false;
     return true;
   }
   function visibleAtYear(){return records.filter(function(r){return r.year===year&&visible(r);});}
