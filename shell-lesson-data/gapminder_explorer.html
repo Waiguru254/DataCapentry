@@ -327,21 +327,23 @@ footer{color:var(--muted2);font-size:11px;text-align:center;}
     var yt=E('text',{x:14,y:MT+plotH/2,'text-anchor':'middle',class:'ax-title',transform:'rotate(-90 14 '+(MT+plotH/2)+')'});yt.textContent='Life expectancy (years)';svg.appendChild(yt);
   }
 
-  var bubbleEls={},bubbleOrder=[];
+  var bubbleEls={},bubbleOrder=[],bubbleRecs={};
   function ensureBubble(r){
-    var key=r.country+'|'+r.year;
-    if(!bubbleEls[key]){var c=E('circle',{'class':'bubble',r:0,cx:ML+plotW/2,cy:MT+plotH/2,fill:contColor(r.continent)});c.setAttribute('opacity',0);c.addEventListener('mouseenter',function(ev){showTip(r,ev);});c.addEventListener('mousemove',moveTip);c.addEventListener('mouseleave',hideTip);bubbleG.appendChild(c);bubbleEls[key]=c;}
+    var key=r.country;
+    if(!bubbleEls[key]){var c=E("circle",{"class":"bubble",r:0,cx:ML+plotW/2,cy:MT+plotH/2,fill:contColor(r.continent)});c.setAttribute("opacity",0);
+      c.addEventListener("mouseenter",function(ev){if(bubbleRecs[key])showTip(bubbleRecs[key],ev);});
+      c.addEventListener("mousemove",moveTip);c.addEventListener("mouseleave",hideTip);
+      bubbleG.appendChild(c);bubbleEls[key]=c;}
+    bubbleRecs[key]=r;
     return bubbleEls[key];
   }
   function positionBubbles(){
     var wantKeys={};
-    visibleAtYear().forEach(function(r){ensureBubble(r);wantKeys[r.country+'|'+r.year]=true;});
+    visibleAtYear().forEach(function(r){ensureBubble(r);wantKeys[r.country]=true;});
     Object.keys(bubbleEls).forEach(function(key){
-      if(!wantKeys[key]){var c=bubbleEls[key];c.classList.add('dim');c.setAttribute('r',0);c.setAttribute('cx',-999);c.setAttribute('cy',-999);}
+      if(!wantKeys[key])bubbleEls[key].style.pointerEvents="none";
     });
   }
-
-  var plotWrap=document.getElementById('plotWrap'),tip=document.getElementById('tooltip');
   function showTip(r,ev){tip.innerHTML='<div class="tt-title"><span class="tt-dot" style="background:'+contColor(r.continent)+'"></span>'+r.country+' <span style="color:var(--muted2);font-weight:500">'+r.year+'</span></div><div class="tt-row"><span>GDP per capita</span><b>$'+Math.round(r.gdpPercap).toLocaleString()+'</b></div><div class="tt-row"><span>Population</span><b>'+r.pop.toLocaleString()+'</b></div><div class="tt-row"><span>Life expectancy</span><b>'+r.lifeExp.toFixed(1)+' yrs</b></div>';tip.classList.add('show');moveTip(ev);}
   function moveTip(ev){var rect=plotWrap.getBoundingClientRect();var x=ev.clientX-rect.left+14,yy=ev.clientY-rect.top+14;if(x+180>rect.width)x=ev.clientX-rect.left-180;if(yy+110>rect.height)yy=ev.clientY-rect.top-110;tip.style.left=x+'px';tip.style.top=yy+'px';}
   function hideTip(){tip.classList.remove('show');}
@@ -349,34 +351,31 @@ footer{color:var(--muted2);font-size:11px;text-align:center;}
   var target={};
   function updateTargets(){
     target={};
-    visibleAtYear().forEach(function(r){var key=r.country+'|'+r.year;target[key]={x:xpx(r.gdpPercap),y:ypx(r.lifeExp),r:rScale(r.pop)};});
+    visibleAtYear().forEach(function(r){target[r.country]={x:xpx(r.gdpPercap),y:ypx(r.lifeExp),r:rScale(r.pop)};});
   }
-
+  var loopPrev=null;
   function loop(){
-    var now=performance.now();
+    var now=performance.now(),dt=Math.min(50,(now-(loopPrev||now))/1000);loopPrev=now;
+    // critically damped spring: settles smoothly, never overshoots, speed scales with distance
+    var w=6,w2=w*w;
     Object.keys(bubbleEls).forEach(function(key){
       var c=bubbleEls[key],st=c.__st,t=target[key];
-      if(!st){st=c.__st={cx:parseFloat(c.getAttribute("cx")),cy:parseFloat(c.getAttribute("cy")),r:parseFloat(c.getAttribute("r")),op:parseFloat(c.getAttribute("opacity"))};
+      if(!st){st=c.__st={x:parseFloat(c.getAttribute("cx")),y:parseFloat(c.getAttribute("cy")),r:parseFloat(c.getAttribute("r")),op:parseFloat(c.getAttribute("opacity")),vx:0,vy:0,vr:0,vo:0};
+        if(isNaN(st.x)){st.x=t?t.x:ML+plotW/2;st.y=t?t.y:MT+plotH/2;st.r=0;}
         if(isNaN(st.op))st.op=0;
-        if(isNaN(st.cx)){st.cx=t?t.x:ML+plotW/2;st.cy=t?t.y:MT+plotH/2;st.r=0;}
-        c.setAttribute("cx",st.cx);c.setAttribute("cy",st.cy);c.setAttribute("r",st.r);c.setAttribute("opacity",st.op);
       }
       if(!t){
-        st.r*=0.86;st.op*=0.82;if(st.r<0.4){st.r=0;st.op=0;}
-        c.setAttribute("r",st.r);c.setAttribute("opacity",Math.max(0,st.op));
-        if(st.r<0.05){c.setAttribute("cx",-999);c.setAttribute("cy",-999);c.style.pointerEvents="none";}
-        return;
+        st.op*=Math.pow(0.001,dt);
+        st.r*=Math.pow(0.001,dt);
+        if(st.op<0.02&&st.r<0.3){st.op=0;st.r=0;c.setAttribute("cx",-999);c.setAttribute("cy",-999);c.setAttribute("r",0);c.setAttribute("opacity",0);return;}
+        c.setAttribute("r",Math.max(0,st.r));c.setAttribute("opacity",Math.max(0,st.op));return;
       }
       c.style.pointerEvents="";
-      if(st.tx!==t.x||st.ty!==t.y||st.tr!==t.r){
-        if(st.tx===undefined||st.op<0.01){st.cx=t.x;st.cy=t.y;st.r=0;st.op=0.0001;}
-        st.tx=t.x;st.ty=t.y;st.tr=t.r;st.top=1;st.t0=now;st.dur=650;
-        st.fx=st.cx;st.fy=st.cy;st.fr=st.r;st.fop=Math.max(0.0001,st.op);
-      }
-      var u=Math.min(1,(now-st.t0)/st.dur);
-      var e=1-Math.pow(1-u,3);
-      st.cx=st.fx+(st.tx-st.fx)*e;st.cy=st.fy+(st.ty-st.fy)*e;st.r=st.fr+(st.tr-st.fr)*e;st.op=st.fop+(st.top-st.fop)*e;
-      c.setAttribute("cx",st.cx);c.setAttribute("cy",st.cy);c.setAttribute("r",Math.max(0,st.r));c.setAttribute("opacity",Math.min(1,st.op));
+      st.vx+=((t.x-st.x)*w2-st.vx*(2*w))*dt; st.x+=st.vx*dt;
+      st.vy+=((t.y-st.y)*w2-st.vy*(2*w))*dt; st.y+=st.vy*dt;
+      st.vr+=((t.r-st.r)*w2-st.vr*(2*w))*dt; st.r+=st.vr*dt;
+      if(st.op<1){st.vo+=((1-st.op)*w2-st.vo*(2*w))*dt; st.op+=st.vo*dt; if(st.op>1){st.op=1;st.vo=0;}}
+      c.setAttribute("cx",st.x);c.setAttribute("cy",st.y);c.setAttribute("r",Math.max(0,st.r));c.setAttribute("opacity",Math.min(1,Math.max(0,st.op)));
     });
     emptyEl.setAttribute("visibility",Object.keys(target).length?"hidden":"visible");
     requestAnimationFrame(loop);
