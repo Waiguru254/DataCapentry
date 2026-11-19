@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gapminder Explorer</title>
+<style>
+:root{--bg:#0b1120;--panel:#111a2e;--card:#0f172a;--border:rgba(148,163,184,.16);--text:#e2e8f0;--muted:#94a3b8;--muted2:#64748b;--accent:#38bdf8;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;min-height:100vh;padding:16px 18px 22px;}
+.app{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:14px;}
+header.app-header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;}
+h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.02em;}
+.subtitle{margin:3px 0 0;color:var(--muted);font-size:13px;font-weight:500;}
+.legend{display:flex;gap:6px 12px;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;padding:3px 8px;border-radius:20px;border:1px solid var(--border);background:rgba(255,255,255,.02);transition:.12s;user-select:none;}
+.legend-item:hover{background:rgba(255,255,255,.06);}
+.legend-item.off{opacity:.4;}
+.legend-item.off .dot{background:transparent !important;box-shadow:inset 0 0 0 2px var(--muted2);}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block;}
+.controls{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;}
+.control{flex:1;min-width:230px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:11px 14px;}
+.control label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted2);font-weight:700;display:block;margin-bottom:8px;}
+.chips{display:flex;gap:6px;flex-wrap:wrap;}
+.chip{border:1px solid var(--border);background:rgba(255,255,255,.02);color:var(--muted);padding:5px 12px;border-radius:20px;font-size:12.5px;cursor:pointer;transition:.12s;font-family:inherit;font-weight:600;}
+.chip:hover{background:rgba(255,255,255,.06);color:var(--text);}
+.chip.active{background:#e2e8f0;color:#0b1120;border-color:#e2e8f0;}
+.searchbox{position:relative;}
+.searchbox input{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;}
+.searchbox input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.15);}
+.sel-count{margin-top:8px;font-size:11.5px;color:var(--muted2);}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:start;}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;}
+.plot-card{min-width:0;}
+.plot-head{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px 4px;gap:10px;flex-wrap:wrap;}
+.plot-head h2{margin:0;font-size:15px;font-weight:700;}
+.plot-head .sub{color:var(--muted2);font-size:12px;}
+.plot-wrap{position:relative;flex:1;padding:2px 8px 2px;}
+svg{width:100%;height:auto;display:block;}
+.grid{stroke:rgba(148,163,184,.09);stroke-width:1;}
+.grid.major{stroke:rgba(148,163,184,.16);}
+.axis{stroke:rgba(148,163,184,.22);stroke-width:1.2;}
+.tick{fill:var(--muted);font-size:11px;}
+.tick.minor{fill:var(--muted2);font-size:10px;}
+.ax-title{fill:var(--muted);font-size:12.5px;font-weight:600;letter-spacing:.02em;}
+.bubble{stroke:rgba(255,255,255,.28);stroke-width:1;cursor:pointer;}
+.bubble:hover{stroke:#fff;stroke-width:2;}
+.bubble.dim{opacity:.14;pointer-events:none;}
+#empty{fill:var(--muted);font-size:15px;}
+.tooltip{position:absolute;pointer-events:none;background:rgba(15,23,42,.97);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.55;box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:0;transition:opacity .1s;z-index:20;min-width:158px;}
+.tooltip.show{opacity:1;}
+.tt-title{font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:7px;margin-bottom:6px;}
+.tt-dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+.tt-row{display:flex;justify-content:space-between;gap:20px;color:var(--muted);}
+.tt-row b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;}
+.timeline{display:flex;gap:12px;align-items:center;padding:10px 16px 14px;border-top:1px solid var(--border);}
+.btn{background:var(--accent);color:#0b1120;border:none;border-radius:9px;width:42px;height:36px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;transition:.12s;}
+.btn:hover{filter:brightness(1.1);}
+.btn.ghost{background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border);width:34px;font-size:12px;}
+.btn.ghost:hover{color:var(--text);}
+.slider{flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:6px;background:rgba(148,163,184,.2);outline:none;cursor:pointer;}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;height:20px;width:20px;border-radius:50%;background:var(--accent);border:3px solid #0b1120;box-shadow:0 0 0 1px var(--accent);cursor:pointer;}
+.slider::-moz-range-thumb{height:16px;width:16px;border-radius:50%;background:var(--accent);border:3px solid #0b1120;cursor:pointer;}
+.yearbox{text-align:right;min-width:96px;}
+.yearbox .yr{font-size:30px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+.yearbox .lab{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted2);}
+.side{display:flex;flex-direction:column;gap:14px;}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:6px 14px 12px;}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 13px;}
+.stat .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted2);font-weight:600;margin-bottom:5px;}
+.stat .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;}
+.top3{list-style:none;margin:0;padding:4px 14px 14px;display:flex;flex-direction:column;gap:8px;}
+.top3 li{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 12px;}
+.rank{width:20px;height:20px;border-radius:6px;background:rgba(56,189,248,.15);color:var(--accent);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+.tc{flex:1;min-width:0;}
+.tname{font-weight:600;font-size:13px;}
+.tcont{font-size:11px;color:var(--muted2);}
+.texp{font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;}
+.card-title{margin:0;padding:12px 14px 8px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;}
+/* table */
+.table-card{margin-top:14px;}
+.table-scroll{max-height:420px;overflow:auto;border-top:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;}
+thead th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;text-align:right;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:700;z-index:5;}
+thead th:first-child{text-align:left;}
+tbody td{padding:8px 14px;text-align:right;border-bottom:1px solid rgba(148,163,184,.08);color:var(--text);}
+tbody td:first-child{text-align:left;font-weight:600;}
+tbody tr:nth-child(odd){background:rgba(255,255,255,.02);}
+tbody tr:hover{background:rgba(56,189,248,.08);}
+.cont-tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;}
+.table-count{padding:10px 14px;font-size:12px;color:var(--muted2);border-bottom:1px solid var(--border);}
+.status{padding:10px 14px;font-size:12px;border-radius:10px;display:none;}
+.status.error{display:block;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#fca5a5;}
+.status.info{display:block;background:rgba(56,189,248,.10);border:1px solid rgba(56,189,248,.35);color:#7dd3fc;}
+.status button{background:var(--accent);color:#0b1120;border:none;border-radius:6px;padding:5px 10px;margin-left:10px;font-weight:700;cursor:pointer;}
+.hidden{display:none !important;}
+footer{color:var(--muted2);font-size:11px;text-align:center;}
+@media (max-width:980px){.main{grid-template-columns:1fr;}.side{display:grid;grid-template-columns:1fr 1fr;}.yearbox .yr{font-size:24px;}}
+@media (max-width:560px){.side{grid-template-columns:1fr;}.controls .control{min-width:100%;}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <div class="title">
+      <h1>Gapminder Explorer</h1>
+      <p class="subtitle">Income, Health &amp; Population &middot; <span id="rangeLabel">&ndash;</span></p>
+    </div>
+    <div class="header-right"><div class="legend" id="legend"></div></div>
+  </header>
+
+  <div class="status" id="statusBox"></div>
+
+  <section class="controls">
+    <div class="control">
+      <label>Continent</label>
+      <div class="chips" id="continentChips">
+        <button class="chip active" data-continents="all">All</button>
+      </div>
+    </div>
+    <div class="control">
+      <label>Year</label>
+      <div class="chips" id="yearChips" style="max-height:84px;overflow:auto"></div>
+    </div>
+  </section>
+
+  <div class="main">
+    <div class="card plot-card">
+      <div class="plot-head">
+        <h2>Life expectancy &times; GDP per capita</h2>
+        <span class="sub">Bubble size = population &middot; colour = continent &middot; X-axis is log scale</span>
+      </div>
+      <div class="plot-wrap" id="plotWrap">
+        <svg id="svg" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="tooltip" id="tooltip"></div>
+      </div>
+      <div class="timeline">
+        <button class="btn" id="playBtn" title="Play / pause">&#9654;</button>
+        <button class="btn ghost" id="stepBtn" title="Step one year">&#9197;</button>
+        <input type="range" class="slider" id="yearSlider" min="1952" max="2007" step="5" value="2007">
+        <div class="yearbox"><div class="yr" id="yearVal">2007</div><div class="lab">Year</div></div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <h3 class="card-title">Statistics &middot; <span id="statYear">2007</span></h3>
+        <div class="stats-grid">
+          <div class="stat"><div class="k">Median life exp.</div><div class="v" id="medLife">&ndash;</div></div>
+          <div class="stat"><div class="k">Median GDP /cap</div><div class="v" id="medGdp">&ndash;</div></div>
+          <div class="stat"><div class="k">Total population</div><div class="v" id="totPop">&ndash;</div></div>
+          <div class="stat"><div class="k">Countries</div><div class="v" id="cnt">&ndash;</div></div>
+        </div>
+        <h3 class="card-title" style="padding-top:6px;">Top 3 by life expectancy</h3>
+        <ol class="top3" id="top3"></ol>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Data source</h3>
+        <div style="padding:4px 14px 14px;font-size:12.5px;color:var(--muted);line-height:1.6;">
+          <div id="srcInfo">&ndash;</div>
+          <div style="margin-top:8px;"><label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:var(--text);"><input type="file" id="filePicker" accept=".csv,text/csv" style="display:none;"><button type="button" class="btn ghost" style="width:auto;padding:6px 10px;font-size:12px;" onclick="document.getElementById('filePicker').click()">Load CSV manually</button></label></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card table-card">
+    <div class="table-count" id="tableCount">&ndash;</div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Country</th><th>Continent</th><th>Year</th><th>Life Exp.</th><th>Population</th><th>GDP per capita</th></tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>Self-contained &middot; no external libraries &middot; loads <code>gapminder_data.csv</code> via fetch</footer>
+</div>
+<script>
+(function(){
+  'use strict';
+  var CONT_COLORS={Africa:'#f4a261',Americas:'#38bdf8',Asia:'#a78bfa',Europe:'#34d399','Oceania':'#f472b6','Antarctica':'#94a3b8'};
+  function contColor(c){return CONT_COLORS[c]||'#94a3b8';}
+
+  // ---------- CSV parsing (robust: quotes, embedded commas, CRLF) ----------
+  function parseCSV(text){
+    text=text.replace(/^\uFEFF/,'');
+    var rows=[],row=[],cur='',inQ=false,i,c,nc;
+    for(i=0;i<text.length;i++){
+      c=text[i];nc=text[i+1];
+      if(inQ){
+        if(c==='"'){ if(nc==='"'){cur+='"';i++;} else {inQ=false;} }
+        else {cur+=c;}
+      } else {
+        if(c==='"'){inQ=true;}
+        else if(c===','){row.push(cur);cur='';}
+        else if(c==='\n'||c==='\r'){ if(c==='\r'&&nc==='\n')i++; if(cur!==''||row.length){row.push(cur);rows.push(row);row=[];cur='';} }
+        else {cur+=c;}
+      }
+    }
+    if(cur!==''||row.length){row.push(cur);rows.push(row);}
+    return rows;
+  }
+
+  // ---------- state ----------
+  var records=[];          // {country,year,pop,continent,lifeExp,gdpPercap}
+  var years=[],continents=[],countries=[];
+  var year=2007, activeCont=new Set(), selectedCont='all', playing=false, timer=null;
+
+  // ---------- DOM ----------
+  var statusBox=document.getElementById('statusBox');
+  function showStatus(kind,msg,btnText,btnFn){
+    statusBox.className='status '+kind;
+    statusBox.innerHTML=msg+(btnText?'<button id="statusBtn">'+btnText+'</button>':'');
+    if(btnText){document.getElementById('statusBtn').addEventListener('click',btnFn);}
+  }
+
+  // ---------- data load ----------
+  function ingest(text,srcLabel){
+    var rows=parseCSV(text);
+    records=[];
+    var headerDetected=false;
+    if(rows.length&&/country/i.test(rows[0][0]||'')){ headerDetected=true; }
+    for(var i=headerDetected?1:0;i<rows.length;i++){
+      var r=rows[i]; if(!r||r.length<6)continue;
+      var rec={country:(r[0]||'').trim(),year:+r[1],pop:+r[2],continent:(r[3]||'').trim(),lifeExp:+r[4],gdpPercap:+r[5]};
+      if(isNaN(rec.year)||isNaN(rec.pop)||isNaN(rec.lifeExp)||isNaN(rec.gdpPercap))continue;
+      if(!rec.country)continue;
+      records.push(rec);
+    }
+    if(!records.length){showStatus('error','No valid rows parsed from the CSV.');return;}
+    var ys={},cs={},ns={};
+    records.forEach(function(r){ys[r.year]=1;cs[r.continent]=1;ns[r.country]=1;});
+    years=Object.keys(ys).map(Number).sort(function(a,b){return a-b;});
+    continents=Object.keys(cs).sort();
+    countries=Object.keys(ns).sort();
+    document.getElementById('srcInfo').textContent='Loaded '+records.length+' rows ('+countries.length+' countries, '+continents.length+' continents, years '+years[0]+'&ndash;'+years[years.length-1]+') from '+srcLabel+'.';
+    document.getElementById('rangeLabel').textContent=years[0]+'&ndash;'+years[years.length-1];
+    year=Math.min(year,years[years.length-1]);
+    buildControls();
+    refresh();
+  }
+
+  function buildControls(){
+    var cc=document.getElementById('continentChips');
+    cc.innerHTML='<button class="chip active" data-continents="all">All</button>';
+    continents.forEach(function(c){var b=document.createElement('button');b.className='chip';b.dataset.continents=c;b.textContent=c;cc.appendChild(b);});
+    cc.querySelectorAll('.chip').forEach(function(ch){ch.addEventListener('click',function(){selectedCont=ch.dataset.continents;cc.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('active',x===ch);});refresh();});});
+
+    var ychips=document.getElementById('yearChips');ychips.innerHTML='';
+    years.forEach(function(y){var b=document.createElement('button');b.className='chip'+(y===year?' active':'');b.textContent=y;b.addEventListener('click',function(){stopPlay();year=y;refresh();});ychips.appendChild(b);});
+
+    var sl=document.getElementById('yearSlider');sl.min=years[0];sl.max=years[years.length-1];sl.step=years.length>1?(years[1]-years[0]):1;sl.value=year;
+    // rebuild legend
+    var lg=document.getElementById('legend');lg.innerHTML='';
+    continents.forEach(function(c){var it=document.createElement('span');it.className='legend-item';it.innerHTML='<span class="dot" style="background:'+contColor(c)+'"></span>'+c;it.title='Toggle '+c;it.addEventListener('click',function(){if(activeCont.size===0){activeCont=new Set(continents);it.classList.remove('off');}else if(activeCont.has(c)){activeCont.delete(c);it.classList.add('off');}else{activeCont.add(c);it.classList.remove('off');}refresh();});lg.appendChild(it);});
+    activeCont=new Set(continents);
+  }
+
+  // ---------- visibility ----------
+  function visible(r){
+    if(selectedCont!=='all'&&r.continent!==selectedCont)return false;
+    if(activeCont.size===0)return false;
+    if(activeCont.size<continents.length&&!activeCont.has(r.continent))return false;
+    return true;
+  }
+  function visibleAtYear(){return records.filter(function(r){return r.year===year&&visible(r);});}
+
+  // ---------- stats ----------
+  function median(a){if(!a.length)return null;a=a.slice().sort(function(x,y){return x-y;});var n=a.length,mid=Math.floor(n/2);return n%2?a[mid]:(a[mid-1]+a[mid])/2;}
+  function fmtPop(m){if(m>=1e9)return (m/1e9).toFixed(2)+'B';if(m>=1e6)return (m/1e6).toFixed(m<1e7?1:0)+'M';if(m>=1e3)return (m/1e3).toFixed(0)+'K';return String(Math.round(m));}
+
+  function updateStats(){
+    var vis=visibleAtYear();var n=vis.length;
+    document.getElementById('statYear').textContent=year;
+    document.getElementById('medLife').textContent=n?median(vis.map(function(x){return x.lifeExp;})).toFixed(1)+' yrs':'\u2013';
+    document.getElementById('medGdp').textContent=n?'$'+Math.round(median(vis.map(function(x){return x.gdpPercap;}))).toLocaleString():'\u2013';
+    var tp=vis.reduce(function(s,x){return s+x.pop;},0);
+    document.getElementById('totPop').textContent=n?fmtPop(tp):'\u2013';
+    document.getElementById('cnt').textContent=n;
+    var top=vis.slice().sort(function(a,b){return b.lifeExp-a.lifeExp;}).slice(0,3);
+    document.getElementById('top3').innerHTML=top.map(function(o,i){return '<li><span class="rank">'+(i+1)+'</span><div class="tc"><div class="tname">'+o.country+'</div><div class="tcont">'+o.continent+'</div></div><div class="texp">'+o.lifeExp.toFixed(1)+'</div></li>';}).join('')||'<li style="justify-content:center;color:var(--muted2)">No countries</li>';
+  }
+
+  // ---------- table ----------
+  function updateTable(){
+    var vis=visibleAtYear().slice().sort(function(a,b){return b.gdpPercap-a.gdpPercap;});
+    document.getElementById('tableCount').textContent='Showing '+vis.length+' of '+records.length+' rows at year '+year;
+    var html='';
+    vis.forEach(function(r){html+='<tr><td>'+r.country+'</td><td><span class="cont-tag"><span class="dot" style="background:'+contColor(r.continent)+'"></span>'+r.continent+'</span></td><td>'+r.year+'</td><td>'+r.lifeExp.toFixed(1)+'</td><td>'+r.pop.toLocaleString()+'</td><td>$'+r.gdpPercap.toLocaleString(undefined,{maximumFractionDigits:0})+'</td></tr>';});
+    document.getElementById('tableBody').innerHTML=html||'<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:20px">No rows match the current filters</td></tr>';
+  }
+
+  // ---------- bubble plot ----------
+  var VB={w:820,h:560},ML=64,MR=22,MT=20,MB=60;
+  var plotW=VB.w-ML-MR,plotH=VB.h-MT-MB;
+  var Xmin,Xmax,Ymin=20,Ymax=90,maxPop=1;
+  function computeScales(){
+    var g=[200],p=[1];
+    records.forEach(function(r){g.push(r.gdpPercap);p.push(r.pop);});
+    Xmin=Math.floor(Math.log10(Math.min.apply(null,g)));
+    Xmax=Math.ceil(Math.log10(Math.max.apply(null,g)));
+    maxPop=Math.max.apply(null,p);
+  }
+  function xpx(g){return ML+plotW*((Math.log10(Math.max(g,1))-Xmin)/(Xmax-Xmin));}
+  function ypx(l){return MT+plotH*(1-(l-Ymin)/(Ymax-Ymin));}
+  function rScale(p){return 5+26*Math.sqrt(Math.max(0,p)/maxPop);}
+
+  var svg=document.getElementById('svg');
+  svg.setAttribute('viewBox','0 0 '+VB.w+' '+VB.h);
+  var NS='http://www.w3.org/2000/svg';
+  function E(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+  var gridG=E('g',{}),axisG=E('g',{}),bubbleG=E('g',{});
+  svg.appendChild(gridG);svg.appendChild(axisG);svg.appendChild(bubbleG);
+  var emptyEl=E('text',{id:'empty','text-anchor':'middle',x:ML+plotW/2,y:MT+plotH/2,visibility:'hidden'});emptyEl.textContent='No data for current filters';svg.appendChild(emptyEl);
+
+  function drawAxes(){
+    gridG.innerHTML='';axisG.innerHTML='';
+    var e,m,v,x,l,yy;
+    for(e=Xmin;e<=Xmax;e++){[2,3,4,5,6,7,8,9].forEach(function(mm){v=mm*Math.pow(10,e);if(v<Math.pow(10,Xmin)||v>Math.pow(10,Xmax))return;x=xpx(v);gridG.appendChild(E('line',{x1:x,y1:MT,x2:x,y2:MT+plotH,class:'grid'}));axisG.appendChild(E('text',{x:x,y:MT+plotH+12,'text-anchor':'middle',class:'tick minor'})).textContent=mm;});}
+    for(e=Xmin;e<=Xmax;e++){v=Math.pow(10,e);x=xpx(v);gridG.appendChild(E('line',{x1:x,y1:MT,x2:x,y2:MT+plotH,class:'grid major'}));axisG.appendChild(E('line',{x1:x,y1:MT+plotH,x2:x,y2:MT+plotH+5,class:'axis'}));var lbl=e===0?'100':(e===1?'1k':(e===2?'10k':(e===3?'100k':(e>0?Math.pow(10,e):'1'))));axisG.appendChild(E('text',{x:x,y:MT+plotH+26,'text-anchor':'middle',class:'tick'})).textContent=lbl;}
+    for(l=30;l<=90;l+=10){yy=ypx(l);gridG.appendChild(E('line',{x1:ML,y1:yy,x2:ML+plotW,y2:yy,class:(l%20===0?'grid major':'grid')}));axisG.appendChild(E('line',{x1:ML-5,y1:yy,x2:ML,y2:yy,class:'axis'}));axisG.appendChild(E('text',{x:ML-10,y:yy+4,'text-anchor':'end',class:'tick'})).textContent=l;}
+    axisG.appendChild(E('line',{x1:ML,y1:MT,x2:ML,y2:MT+plotH,class:'axis'}));
+    axisG.appendChild(E('line',{x1:ML,y1:MT+plotH,x2:ML+plotW,y2:MT+plotH,class:'axis'}));
+    var xt=E('text',{x:ML+plotW/2,y:VB.h-6,'text-anchor':'middle',class:'ax-title'});xt.textContent='GDP per capita (log scale, USD)';svg.appendChild(xt);
+    var yt=E('text',{x:14,y:MT+plotH/2,'text-anchor':'middle',class:'ax-title',transform:'rotate(-90 14 '+(MT+plotH/2)+')'});yt.textContent='Life expectancy (years)';svg.appendChild(yt);
+  }
+
+  var bubbleEls={},bubbleOrder=[];
+  function ensureBubble(r){
+    var key=r.country+'|'+r.year;
+    if(!bubbleEls[key]){var c=E('circle',{'class':'bubble dim',r:0,cx:-999,cy:-999,fill:contColor(r.continent)});c.addEventListener('mouseenter',function(ev){showTip(r,ev);});c.addEventListener('mousemove',moveTip);c.addEventListener('mouseleave',hideTip);bubbleG.appendChild(c);bubbleEls[key]=c;}
+    return bubbleEls[key];
+  }
+  function clearBubbles(){bubbleG.innerHTML='';bubbleEls={};}
+
+  var plotWrap=document.getElementById('plotWrap'),tip=document.getElementById('tooltip');
+  function showTip(r,ev){tip.innerHTML='<div class="tt-title"><span class="tt-dot" style="background:'+contColor(r.continent)+'"></span>'+r.country+' <span style="color:var(--muted2);font-weight:500">'+r.year+'</span></div><div class="tt-row"><span>GDP per capita</span><b>$'+Math.round(r.gdpPercap).toLocaleString()+'</b></div><div class="tt-row"><span>Population</span><b>'+r.pop.toLocaleString()+'</b></div><div class="tt-row"><span>Life expectancy</span><b>'+r.lifeExp.toFixed(1)+' yrs</b></div>';tip.classList.add('show');moveTip(ev);}
+  function moveTip(ev){var rect=plotWrap.getBoundingClientRect();var x=ev.clientX-rect.left+14,yy=ev.clientY-rect.top+14;if(x+180>rect.width)x=ev.clientX-rect.left-180;if(yy+110>rect.height)yy=ev.clientY-rect.top-110;tip.style.left=x+'px';tip.style.top=yy+'px';}
+  function hideTip(){tip.classList.remove('show');}
+
+  var target={};
+  function updateTargets(){
+    target={};
+    visibleAtYear().forEach(function(r){var key=r.country+'|'+r.year;target[key]={x:xpx(r.gdpPercap),y:ypx(r.lifeExp),r:rScale(r.pop)};});
+  }
+
+  function loop(){
+    Object.keys(bubbleEls).forEach(function(key){var t=target[key],c=bubbleEls[key];if(!t){c.classList.add('dim');c.setAttribute('r',0);c.setAttribute('cx',-999);c.setAttribute('cy',-999);return;}c.classList.remove('dim');var cx=parseFloat(c.getAttribute('cx')),cy=parseFloat(c.getAttribute('cy')),cr=parseFloat(c.getAttribute('r'));if(isNaN(cx))cx=t.x;if(isNaN(cy))cy=t.y;if(isNaN(cr)||cr===0)cr=t.r;var k=0.22;c.setAttribute('cx',cx+(t.x-cx)*k);c.setAttribute('cy',cy+(t.y-cy)*k);c.setAttribute('r',cr+(t.r-cr)*k);});
+    emptyEl.setAttribute('visibility',Object.keys(target).length?'hidden':'visible');
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- playback ----------
+  function stepOnce(){if(!playing)return;var idx=years.indexOf(year);if(idx>=years.length-1){stopPlay();return;}year=years[idx+1];refresh();}
+  function startPlay(){if(playing)return;playing=true;if(year===years[years.length-1]){year=years[0];refresh();}document.getElementById('playBtn').innerHTML='&#10074;&#10074;';timer=setInterval(stepOnce,700);}
+  function stopPlay(){playing=false;if(timer){clearInterval(timer);timer=null;}document.getElementById('playBtn').innerHTML='&#9654;';}
+
+  function refresh(){
+    document.getElementById('yearVal').textContent=year;
+    document.getElementById('yearSlider').value=year;
+    document.querySelectorAll('#yearChips .chip').forEach(function(b){b.classList.toggle('active',+b.textContent===year);});
+    clearBubbles();
+    visibleAtYear().forEach(ensureBubble);
+    updateTargets();updateStats();updateTable();
+  }
+
+  document.getElementById('yearSlider').addEventListener('input',function(e){stopPlay();year=+e.target.value;refresh();});
+  document.getElementById('playBtn').addEventListener('click',function(){if(playing)stopPlay();else startPlay();});
+  document.getElementById('stepBtn').addEventListener('click',function(){stopPlay();var idx=years.indexOf(year);if(idx<years.length-1){year=years[idx+1];refresh();}});
+
+  document.getElementById('filePicker').addEventListener('change',function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){ingest(rd.result,f.name);};rd.readAsText(f);});
+
+  // ---------- initial load ----------
+  showStatus('info','Loading gapminder_data.csv&hellip;');
+  fetch('gapminder_data.csv',{cache:'no-store'}).then(function(res){if(!res.ok)throw new Error('HTTP '+res.status);return res.text();}).then(function(txt){statusBox.className='status hidden';ingest(txt,'gapminder_data.csv');}).catch(function(err){showStatus('error','Could not load <code>gapminder_data.csv</code> via fetch ('+err.message+'). Browsers often block fetch on <code>file://</code> pages &mdash; use the <b>Load CSV manually</b> button in the Data source card, or serve this folder over http (e.g. <code>python -m http.server</code>).','Load CSV manually',function(){document.getElementById('filePicker').click();});});
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
